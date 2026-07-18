@@ -183,6 +183,8 @@ export default function App() {
     (next) => {
       setText(next);
       textRef.current = next;
+      // When user starts typing, set pendingVersion to current version at this moment
+      pendingVersion.current = versionRef.current;
       scheduleSave();
     },
     [scheduleSave]
