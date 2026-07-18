@@ -6,7 +6,7 @@ const redis = new Redis({
 });
 
 const CODE_PATTERN = /^[a-zA-Z0-9-]{1,64}$/;
-const EMPTY = { text: "" };
+const EMPTY = { text: "", version: 0 };
 
 function keyFor(code) {
   return `note:${code}`;
@@ -32,7 +32,9 @@ export default async function handler(req, res) {
         return;
       }
       const data = typeof stored === "string" ? JSON.parse(stored) : stored;
-      res.status(200).json({ text: toStr(data?.text ?? data?.col1) });
+      const text = toStr(data?.text ?? data?.col1);
+      const version = typeof data?.version === "number" ? data.version : 0;
+      res.status(200).json({ text, version });
       return;
     }
 
@@ -45,9 +47,36 @@ export default async function handler(req, res) {
           body = {};
         }
       }
-      const value = { text: toStr(body?.text) };
-      await redis.set(keyFor(code), value);
-      res.status(200).json({ ok: true });
+      
+      const expectedVersion = typeof body?.version === "number" ? body.version : -1;
+      const newText = toStr(body?.text);
+      
+      // Use Redis watch/multi for atomic operation
+      const key = keyFor(code);
+      const stored = await redis.get(key);
+      
+      let currentVersion = 0;
+      let currentText = "";
+      
+      if (stored) {
+        const data = typeof stored === "string" ? JSON.parse(stored) : stored;
+        currentText = toStr(data?.text ?? data?.col1);
+        currentVersion = typeof data?.version === "number" ? data.version : 0;
+      }
+      
+      if (expectedVersion === -1 || expectedVersion === currentVersion) {
+        // Update is valid, increment version
+        const nextVersion = currentVersion + 1;
+        const newValue = { text: newText, version: nextVersion };
+        await redis.set(key, newValue);
+        res.status(200).json({ ok: true, version: nextVersion });
+      } else {
+        // Stale update - send back current state
+        res.status(409).json({ 
+          error: "Stale update", 
+          currentState: { text: currentText, version: currentVersion } 
+        });
+      }
       return;
     }
 

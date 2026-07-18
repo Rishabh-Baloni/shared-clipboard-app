@@ -32,13 +32,17 @@ export default function App() {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
   const [theme, setTheme] = useState(getStoredTheme);
+  const [version, setVersion] = useState(0);
 
   const textRef = useRef(text);
+  const versionRef = useRef(version);
   const focusRef = useRef(false);
   const saveTimer = useRef(null);
   const pendingSave = useRef(false);
+  const pendingVersion = useRef(version);
 
   textRef.current = text;
+  versionRef.current = version;
 
   useEffect(() => {
     let current = readHashCode();
@@ -67,6 +71,9 @@ export default function App() {
         if (cancelled) return;
         setText(data.text);
         textRef.current = data.text;
+        setVersion(data.version);
+        versionRef.current = data.version;
+        pendingVersion.current = data.version;
         setStatus("synced");
         setLastSavedAt(Date.now());
       })
@@ -86,13 +93,15 @@ export default function App() {
       try {
         const data = await getNote(code);
         if (cancelled) return;
-        setText((prev) => {
-          if (data.text !== prev) {
-            textRef.current = data.text;
-            return data.text;
-          }
-          return prev;
-        });
+        
+        // Only update if we have a newer version
+        if (data.version > versionRef.current) {
+          setText(data.text);
+          textRef.current = data.text;
+          setVersion(data.version);
+          versionRef.current = data.version;
+          pendingVersion.current = data.version;
+        }
         if (!pendingSave.current) {
           setStatus("synced");
         }
@@ -139,10 +148,24 @@ export default function App() {
   const flushSave = useCallback(() => {
     if (!code) return;
     pendingSave.current = false;
-    saveNote(code, { text: textRef.current })
-      .then(() => {
-        setStatus("synced");
-        setLastSavedAt(Date.now());
+    saveNote(code, { text: textRef.current, version: pendingVersion.current })
+      .then((response) => {
+        if (response.ok) {
+          // Success! Update our local version
+          setVersion(response.version);
+          versionRef.current = response.version;
+          pendingVersion.current = response.version;
+          setStatus("synced");
+          setLastSavedAt(Date.now());
+        } else if (response.error === "Stale update" && response.currentState) {
+          // Got a stale update - sync with server's current state
+          setText(response.currentState.text);
+          textRef.current = response.currentState.text;
+          setVersion(response.currentState.version);
+          versionRef.current = response.currentState.version;
+          pendingVersion.current = response.currentState.version;
+          setStatus("synced");
+        }
       })
       .catch(() => {
         setStatus("reconnecting");

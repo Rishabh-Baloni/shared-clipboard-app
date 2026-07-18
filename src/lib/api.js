@@ -7,18 +7,25 @@ export async function getNote(code, signal) {
     throw new Error(`GET failed with status ${res.status}`);
   }
   const data = await res.json();
-  return { text: typeof data?.text === "string" ? data.text : "" };
+  return { 
+    text: typeof data?.text === "string" ? data.text : "", 
+    version: typeof data?.version === "number" ? data.version : 0 
+  };
 }
 
 export async function saveNote(code, value, signal) {
   const res = await fetch(`/api/note?code=${encodeURIComponent(code)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: value.text ?? "" }),
+    body: JSON.stringify({ 
+      text: value.text ?? "", 
+      version: value.version ?? -1 
+    }),
     signal,
   });
+  const data = await res.json();
   if (!res.ok) {
-    throw new Error(`POST failed with status ${res.status}`);
+    return data;
   }
-  return res.json();
+  return data;
 }
