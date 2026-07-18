@@ -92,13 +92,14 @@ export default function ColumnCard({
       
       prevValueRef.current = value;
       
-      requestAnimationFrame(() => {
+      // Use setTimeout instead of requestAnimationFrame to ensure it runs after React updates the DOM
+      setTimeout(() => {
         try {
           el.setSelectionRange(newStart, newEnd);
         } catch {
           /* ignore */
         }
-      });
+      }, 0);
     } else {
       prevValueRef.current = value;
     }
