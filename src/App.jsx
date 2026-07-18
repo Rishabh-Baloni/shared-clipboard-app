@@ -87,7 +87,7 @@ export default function App() {
         const data = await getNote(code);
         if (cancelled) return;
         setText((prev) => {
-          if (!focusRef.current && data.text !== prev) {
+          if (data.text !== prev) {
             textRef.current = data.text;
             return data.text;
           }

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Copy, Check, ClipboardPaste, Trash2 } from "lucide-react";
 
 export default function ColumnCard({
@@ -13,6 +13,7 @@ export default function ColumnCard({
   const [pasted, setPasted] = useState(false);
   const [hint, setHint] = useState("");
   const textareaRef = useRef(null);
+  const prevValueRef = useRef(value);
 
   const copy = async () => {
     try {
@@ -70,6 +71,38 @@ export default function ColumnCard({
       });
     }
   };
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el || value === prevValueRef.current) return;
+
+    if (document.activeElement === el) {
+      const { selectionStart, selectionEnd } = el;
+      const newValueLength = value.length;
+      const oldValueLength = prevValueRef.current.length;
+      
+      // Try to preserve cursor position as best as possible
+      let newStart = Math.min(selectionStart, newValueLength);
+      let newEnd = Math.min(selectionEnd, newValueLength);
+      
+      // If text was added at the end, keep cursor at end
+      if (value.startsWith(prevValueRef.current)) {
+        newStart = newEnd = newValueLength;
+      }
+      
+      prevValueRef.current = value;
+      
+      requestAnimationFrame(() => {
+        try {
+          el.setSelectionRange(newStart, newEnd);
+        } catch {
+          /* ignore */
+        }
+      });
+    } else {
+      prevValueRef.current = value;
+    }
+  }, [value]);
 
   return (
     <section className="flex h-full min-h-[40vh] flex-col rounded-card border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 md:min-h-0">
